@@ -48,7 +48,7 @@ for filename in sys.argv[2:]:
         trees[tree_name].AddFile(filename)
 
 for tree_name in trees:
-    if tree_name == "h4" or tree_name == "wf":
+    if tree_name == "h4": #or tree_name == "wf":
         continue
     mergedFile.cd()
     trees[tree_name].Merge(mergedFile, 0, "keep")
