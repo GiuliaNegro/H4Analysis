@@ -95,7 +95,8 @@ void ReadInputFiles(CfgManager& opts, int& firstSpill, TChain* inTree)
     else
         ls_command = string("ls "+path+run+" | grep 'root' > /tmp/"+run+".list");
     system(ls_command.c_str());
-    ifstream waveList(string("/tmp/"+run+".list").c_str(), ios::in);
+
+    ifstream waveList(string("tmp/"+run+".list").c_str(), ios::in);
     while(waveList >> file && (opts.GetOpt<int>("h4reco.maxFiles")<0 || nFiles<opts.GetOpt<int>("h4reco.maxFiles")) )
     {
         //---skip files before specified spill
