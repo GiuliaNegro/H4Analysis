@@ -87,7 +87,7 @@ void ReadInputFiles(CfgManager& opts, int& firstSpill, TChain* inTree)
 	if ( getMachineDomain() != "cern.ch" )
             ls_command = string("gfal-ls root://eoscms/"+path+run+" | grep 'root' > /tmp/"+run+".list");
 	else
-            ls_command = string("ls "+path+run+" | grep 'root' > tmp/"+run+".list");
+            ls_command = string("ls "+path+run+" | grep 'root' > /tmp/"+run+".list");
     }
     else if(path.find("srm://") != string::npos)
         ls_command = string("echo "+path+run+"/`gfal-ls "+path+run+
@@ -96,7 +96,7 @@ void ReadInputFiles(CfgManager& opts, int& firstSpill, TChain* inTree)
         ls_command = string("ls "+path+run+" | grep 'root' > /tmp/"+run+".list");
     system(ls_command.c_str());
 
-    ifstream waveList(string("tmp/"+run+".list").c_str(), ios::in);
+    ifstream waveList(string("/tmp/"+run+".list").c_str(), ios::in);
     while(waveList >> file && (opts.GetOpt<int>("h4reco.maxFiles")<0 || nFiles<opts.GetOpt<int>("h4reco.maxFiles")) )
     {
         //---skip files before specified spill

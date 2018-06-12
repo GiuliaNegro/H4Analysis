@@ -42,7 +42,7 @@ float WFClass::GetAmpMax(int min, int max)
 }
 
 //----------Get the interpolated max/min amplitude wrt polarity---------------------------
-WFFitResults WFClass::GetInterpolatedAmpMax(int min, int max, int nFitSamples)
+WFFitResults WFClass::GetInterpolatedAmpMax(int min, int max, int nFitSamples, string function)
 {
     //---check if already computed
     if(min==-1 && max==-1 && fitAmpMax_!=-1)
@@ -59,7 +59,7 @@ WFFitResults WFClass::GetInterpolatedAmpMax(int min, int max, int nFitSamples)
 
     //---fit the max
     TH1F h_max("h_max", "", nFitSamples, maxSample_-nFitSamples/2, maxSample_+nFitSamples/2);
-    TF1 f_max("f_max", "pol2", maxSample_-nFitSamples/2, maxSample_+nFitSamples/2);
+    TF1 f_max("f_max", function.c_str(), maxSample_-nFitSamples/2, maxSample_+nFitSamples/2);
 
     int bin=1;
     for(int iSample=maxSample_-(nFitSamples-1)/2; iSample<=maxSample_+(nFitSamples-1)/2; ++iSample)
@@ -72,8 +72,10 @@ WFFitResults WFClass::GetInterpolatedAmpMax(int min, int max, int nFitSamples)
     if(h_max.GetMaximum() != 0)
     {
         auto fit_result = h_max.Fit(&f_max, "QRSO");
-        fitTimeMax_ = -f_max.GetParameter(1)/(2*f_max.GetParameter(2));
-        fitAmpMax_ = f_max.Eval(fitTimeMax_);
+        // fitTimeMax_ = -f_max.GetParameter(1)/(2*f_max.GetParameter(2));
+        // fitAmpMax_ = f_max.Eval(fitTimeMax_);
+        fitTimeMax_ = f_max.GetMaximumX();
+        fitAmpMax_ = f_max.GetMaximum();
         fitChi2Max_ = nFitSamples > 3 ? fit_result->Chi2()/(nFitSamples-3) : -1;
     }
     else
@@ -93,7 +95,7 @@ pair<float, float> WFClass::GetTime(string method, vector<float>& params)
     if(method.find("CFD") != string::npos)
     {
         if(params.size()<1)
-            cout << ">>>ERROR: to few arguments passed for CFD time computation" << endl;
+            cout << ">>>ERROR, WFClass: to few arguments passed for CFD time computation" << endl;
         else if(params.size()<2)
             return GetTimeCF(params[0]);
         else if(params.size()<3)
@@ -106,7 +108,7 @@ pair<float, float> WFClass::GetTime(string method, vector<float>& params)
     else if(method.find("LED") != string::npos)
     {
         if(params.size()<1)
-            cout << ">>>ERROR: to few arguments passed for LED time computation" << endl;
+            cout << ">>>ERROR, WFClass: to few arguments passed for LED time computation" << endl;
         else if(params.size()<2)
             return GetTimeLE(params[0]);
         else if(params.size()<4)
@@ -116,7 +118,7 @@ pair<float, float> WFClass::GetTime(string method, vector<float>& params)
 
     }
     
-    cout << ">>>ERROR: time reconstruction method <" << method << "> not supported" << endl;
+    cout << ">>>ERROR, WFClass: time reconstruction method <" << method << "> not supported" << endl;
     return make_pair(-1000, -1);
 }
 
