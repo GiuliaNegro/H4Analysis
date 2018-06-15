@@ -90,6 +90,8 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
             continue;
         }
 
+        // cout<<channel<<endl;
+
         //---subtract a specified channel if requested
         if(opts.OptExist(channel+".subtractChannel") && WFs_.find(opts.GetOpt<string>(channel+".subtractChannel")) != WFs_.end())
             *WFs_[channel] -= *WFs_[opts.GetOpt<string>(channel+".subtractChannel")];        
@@ -98,21 +100,31 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
         WFs_[channel]->SetSignalWindow(opts.GetOpt<int>(channel+".signalWin", 0), 
                                        opts.GetOpt<int>(channel+".signalWin", 1));
         WFBaseline baselineInfo = WFs_[channel]->SubtractBaseline();
+        // cout<<channel<<": baseline="<<baselineInfo.baseline<<", rms="<<baselineInfo.rms<<", slope="<<baselineInfo.slope<<", k="<<baselineInfo.k<<", chi2="<<baselineInfo.chi2<<endl;
+        digiTree_.b_slope[outCh] = baselineInfo.slope;
+        digiTree_.b_rms[outCh] = baselineInfo.rms;   
+
         string max_function = opts.OptExist(channel+".signalWin", 3) ? opts.GetOpt<string>(channel+".signalWin", 3) : "pol2";
         WFFitResults interpolAmpMax = WFs_[channel]->GetInterpolatedAmpMax(-1,-1, opts.GetOpt<int>(channel+".signalWin", 2), max_function);
-        digiTree_.b_charge[outCh] = WFs_[channel]->GetIntegral(opts.GetOpt<int>(channel+".baselineInt", 0), 
-                                                               opts.GetOpt<int>(channel+".baselineInt", 1));        
-        digiTree_.b_slope[outCh] = baselineInfo.slope;
-        digiTree_.b_rms[outCh] = baselineInfo.rms;
-        digiTree_.maximum[outCh] = WFs_[channel]->GetAmpMax();
-        digiTree_.time_maximum[outCh] = WFs_[channel]->GetTimeCF(1).first;
         digiTree_.amp_max[outCh] = interpolAmpMax.ampl;
         digiTree_.time_max[outCh] = interpolAmpMax.time;
         digiTree_.chi2_max[outCh] = interpolAmpMax.chi2;
+        // cout<<"fitTime="<<interpolAmpMax.time<<", fitAmp="<<interpolAmpMax.ampl<<", fitChi2="<<interpolAmpMax.chi2<<endl;
+
+        digiTree_.maximum[outCh] = WFs_[channel]->GetAmpMax();
+
+        digiTree_.time_maximum[outCh] = WFs_[channel]->GetTimeCF(1).first;
+        // cout<<"time_maximum="<<WFs_[channel]->GetTimeCF(1).first<<endl;
+
+        digiTree_.b_charge[outCh] = WFs_[channel]->GetIntegral(opts.GetOpt<int>(channel+".baselineInt", 0), 
+                                                               opts.GetOpt<int>(channel+".baselineInt", 1));   
+
         digiTree_.charge_tot[outCh] = WFs_[channel]->GetModIntegral(opts.GetOpt<int>(channel+".baselineInt", 1), 
                                                                     WFs_[channel]->GetNSample());
         digiTree_.charge_sig[outCh] = WFs_[channel]->GetSignalIntegral(opts.GetOpt<int>(channel+".signalInt", 0), 
                                                                        opts.GetOpt<int>(channel+".signalInt", 1));
+
+
         //---compute time with all the requested time reconstruction method
         for(unsigned int iT=0; iT<timeRecoTypes_.size(); ++iT)
         {
@@ -122,6 +134,7 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
                 pair<float, float> timeInfo = WFs_[channel]->GetTime(timeRecoTypes_[iT], timeOpts_[channel+"."+timeRecoTypes_[iT]]);
                 digiTree_.time[outCh+iT*channelsNames_.size()] = timeInfo.first;
                 digiTree_.time_chi2[outCh+iT*channelsNames_.size()] = timeInfo.second;
+                // cout<<"time="<<timeInfo.first<<", time_chi2="<<timeInfo.second<<endl;
             }
             else
             {
@@ -129,6 +142,26 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
                 digiTree_.time_chi2[outCh+iT*channelsNames_.size()] = -99;
             }
         }
+
+
+        WFs_[channel]->AddTime();
+
+        digiTree_.time_fscint[outCh] = WFs_[channel]->GetTimeAmpFscint().first;
+        digiTree_.amp_fscint[outCh] = WFs_[channel]->GetTimeAmpFscint().second;
+
+        if (channel=="CLK") {
+            digiTree_.period[outCh] = WFs_[channel]->GetPeriodPhase().first;
+            digiTree_.phase[outCh] = WFs_[channel]->GetPeriodPhase().second;
+        } else {
+            digiTree_.period[outCh] = -99;
+            digiTree_.phase[outCh] = -99;
+        }
+
+        if (channel=="MCP" || channel=="TRG") 
+            digiTree_.t0[outCh] = WFs_[channel]->GetTime0(); 
+        else 
+            digiTree_.t0[outCh] = -99;
+
 
         //---template fit (only specified channels)
         WFFitResults fitResults{-1, -1000, -1};
@@ -153,11 +186,14 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
         {
             auto analizedWF = WFs_[channel]->GetSamples();
             float tUnit = WFs_[channel]->GetTUnit();
+
             for(unsigned int jSample=0; jSample<analizedWF->size(); ++jSample)
             {
                 outWFTree_.WF_ch.push_back(outCh);
                 outWFTree_.WF_time.push_back(jSample*tUnit);
                 outWFTree_.WF_val.push_back(analizedWF->at(jSample));
+                // if (jSample<10)
+                    // cout<<channel<<": ch="<<outCh<<", time="<<jSample*tUnit<<", val="<<analizedWF->at(jSample)<<endl;
             }
         }
         //---increase output tree channel counter

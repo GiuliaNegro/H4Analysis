@@ -53,6 +53,12 @@ public:
     int*          channels;
     int*          time_types;
     float*        calibration;
+    float*        time_fscint;
+    float*        amp_fscint;
+    float*        period;
+    float*        phase;
+    float*        t0;
+
 };
 
 #endif
