@@ -10,7 +10,10 @@ WFClass::WFClass(int polarity, float tUnit):
     bWinMin_(-1), bWinMax_(-1),  maxSample_(-1), fitAmpMax_(-1), fitTimeMax_(-1),
     fitChi2Max_(-1), baseline_(-1), bRMS_(-1), cfSample_(-1), cfFrac_(-1), cfTime_(-1),
     leSample_(-1), leTime_(-1), chi2cf_(-1), chi2le_(-1),
-    fWinMin_(-1), fWinMax_(-1), tempFitTime_(-1), tempFitAmp_(-1), interpolator_(NULL)
+    fWinMin_(-1), fWinMax_(-1), tempFitTime_(-1), tempFitAmp_(-1), 
+    time_fscint_(-1), amp_fscint_(-1), P_clock_(-1), t0_clock_(-1), 
+    interpolator_(NULL)
+    
 {}
 //**********Getters***********************************************************************
 
@@ -26,6 +29,7 @@ float WFClass::GetAmpMax(int min, int max)
     //---return the max if already computed
     else if(maxSample_ != -1)
         return samples_.at(maxSample_);
+    // cout<<"sWinMin_="<<sWinMin_<<", sWinMax_="<<sWinMax_<<endl;
 
     //---find the max
     maxSample_=sWinMin_;
@@ -38,6 +42,7 @@ float WFClass::GetAmpMax(int min, int max)
         if(samples_.at(iSample) > samples_.at(maxSample_)) 
             maxSample_ = iSample;
     }    
+    // cout<<"maxSample_="<<maxSample_<<", maxVal="<<samples_.at(maxSample_)<<endl;
     return samples_.at(maxSample_);
 }
 
@@ -60,6 +65,7 @@ WFFitResults WFClass::GetInterpolatedAmpMax(int min, int max, int nFitSamples, s
     //---fit the max
     TH1F h_max("h_max", "", nFitSamples, maxSample_-nFitSamples/2, maxSample_+nFitSamples/2);
     TF1 f_max("f_max", function.c_str(), maxSample_-nFitSamples/2, maxSample_+nFitSamples/2);
+    // cout<<"maxSample_="<<maxSample_<<", nFitSamples="<<nFitSamples<<endl;
 
     int bin=1;
     for(int iSample=maxSample_-(nFitSamples-1)/2; iSample<=maxSample_+(nFitSamples-1)/2; ++iSample)
@@ -83,8 +89,8 @@ WFFitResults WFClass::GetInterpolatedAmpMax(int min, int max, int nFitSamples, s
         fitTimeMax_ = -1;
         fitAmpMax_ = 1000;
         fitChi2Max_ = -1;
-    }
-        
+    }    
+    // cout<<"fitTimeMax_="<<fitTimeMax_<<", fitAmpMax_="<<fitAmpMax_<<", fitChi2Max_="<<fitChi2Max_<<endl;
     return WFFitResults{fitAmpMax_, fitTimeMax_*tUnit_, fitChi2Max_};
 }
 
@@ -122,11 +128,128 @@ pair<float, float> WFClass::GetTime(string method, vector<float>& params)
     return make_pair(-1000, -1);
 }
 
+
+//----------Define vector for time of samples-------------------------
+void WFClass::AddTime()
+{
+    for(int is=0; is<samples_.size(); is++)   
+        times_.push_back(is*tUnit_);
+    pulse_=new TGraph(samples_.size(), times_.data(), samples_.data());
+}
+
+
+//----------Get time_max and amp_max with fscint----------------------
+pair<float, float> WFClass::GetTimeAmpFscint(float tfitmin, float tfitmax)
+{
+    //---check if already computed
+    if(amp_fscint_!=-1 || time_fscint_!=-1)
+        return make_pair(time_fscint_, amp_fscint_);
+    //---return the max if not already computed
+    if(maxSample_ == -1) 
+        GetAmpMax(); 
+
+    double tfit_min=(maxSample_+tfitmin)*tUnit_;
+    double tfit_max=(maxSample_+tfitmax)*tUnit_;
+
+    TF1 fscint("fscint","(x<[1]-[2]*[3])?0.:[0]*(x-[1]+[2]*[3])*(x-[1]+[2]*[3])*exp(-(x-[1])*(x-[1])/2./[2]/[2])",tfit_min,tfit_max);
+    // TF1 fscint("fscint","(x<[1]-[2]*[3])?0.:[0]*(x-[1]+[2]*[3])*(x-[1]+[2]*[3])*exp(-(x-[1])*(x-[1])/2./[2]/[2])",0.,1000.);
+    // fscint->SetNpx(10000);
+    fscint.SetParameter(0,(samples_.at(maxSample_))/30.); 
+    fscint.SetParameter(1,maxSample_*tUnit_-2.*14.);
+    fscint.SetParameter(2,14.);
+    fscint.SetParameter(3,-1.);
+    pulse_->Fit(&fscint,"QRSO","",tfit_min,tfit_max);  
+
+    amp_fscint_=fscint.GetMaximum();
+    time_fscint_=fscint.GetMaximumX();
+    cout<<"i_max="<<maxSample_<<", amp_fscint="<<amp_fscint_<<", time_fscint="<<time_fscint_<<endl;
+
+    return make_pair(time_fscint_, amp_fscint_);
+}
+
+
+//----------Get info (period, phase) clock----------------------------
+pair<float, float> WFClass::GetPeriodPhase(int i0_clock, float tfitmin, float tfitmax)
+{
+    //---check if already computed
+    if(P_clock_!=-1 || t0_clock_!=-1)
+        return make_pair(P_clock_, t0_clock_);
+
+    int n_clock = samples_.size();
+    int S1=0., Si=0., Si2=0.;
+    double Sti=0., Siti=0.;
+    double ti_clock[100];
+
+    while(i0_clock<n_clock-100) {
+      double t1=0.,y1=0.,y2=0.;
+      for(; i0_clock<n_clock-1; i0_clock++) {
+        t1 = i0_clock*tUnit_;
+        y1 = samples_.at(i0_clock);
+        y2 = samples_.at(i0_clock+1);
+        if(y1<0. && y2>0.) {
+          break;
+        }
+      }
+      // cout<<"t1="<<t1<<", y1="<<y1<<", y2="<<y2<<endl;
+
+      TF1 fclock("clock","[0]*tanh((x-[1])/[2])+[3]",0.,200.);
+      // fclock.SetNpx(10000);
+      fclock.SetParameter(0,300.);
+      fclock.SetParameter(1,t1);
+      fclock.SetParameter(2,0.5);
+      fclock.SetParameter(3,0.);   
+      pulse_->Fit(&fclock,"QRSO","",t1+tfitmin,t1+tfitmax); 
+      ti_clock[S1]=fclock.GetParameter(1);
+      // cout<<"i0_clock="<<i0_clock<<", t1="<<t1<<", t0="<<ti_clock[S1]<<endl;
+      Si+=S1;
+      Si2+=S1*S1;
+      Sti+=ti_clock[S1];
+      Siti+=S1*ti_clock[S1];
+      S1++;
+      i0_clock++;
+    }
+    // cout<<"i0_clock="<<i0_clock<<", S1="<<S1<<", Si="<<Si<<", Si2="<<Si2<<", Sti="<<Sti<<", Siti="<<Siti<<endl;
+    P_clock_=(Siti-Si*Sti/S1)/(Si2-Si*Si/S1); 
+    t0_clock_=(Sti-Si*P_clock_)/S1;
+    // cout<<"period="<<P_clock_<<", phase="<<t0_clock_<<endl;
+
+    return make_pair(P_clock_, t0_clock_);
+}
+
+
+//----------Get t0 trigger, MCP---------------------------------------
+float WFClass::GetTime0() 
+{
+    //---return the max if not already computed
+    if(maxSample_ == -1) 
+        GetAmpMax(); 
+
+    float t0=-99.;
+    float time_max=times_.at(maxSample_);
+    float amp_max=samples_.at(maxSample_);
+    // cout<<"maxSample="<<maxSample_<<", time_max="<<time_max<<", amp_max="<<amp_max<<endl;
+
+    TF1 ft0("ft0","[0]*(1.+tanh((x-[1])/[2]))/2.",0.,200.);
+    // ft0.SetNpx(10000);
+    ft0.SetParameter(0,amp_max);
+    ft0.SetParameter(1,time_max-1.);
+    ft0.SetParameter(2,0.3);
+
+    pulse_->Fit(&ft0, "QRSO", "", 0., time_max);
+    t0=ft0.GetParameter(1);
+    // cout<<"t0="<<t0<<endl;
+
+    return t0;
+}
+
+
 //----------Get CF time for a given fraction and in a given range-------------------------
 pair<float, float> WFClass::GetTimeCF(float frac, int nFitSamples, int min, int max)
 {
     if(frac != cfFrac_ || cfSample_ != -1)
     {
+        // cout<<"min="<<min<<", max="<<max<<", nFitSamples="<<nFitSamples<<endl;
+
         //---setups---
         int tStart=min;
         if(tStart == -1)
@@ -136,6 +259,7 @@ pair<float, float> WFClass::GetTimeCF(float frac, int nFitSamples, int min, int 
         if(fitAmpMax_ == -1)
             GetInterpolatedAmpMax(min, max);
         if(frac == 1) 
+            // cout<<"maxSample_="<<maxSample_<<", tUnit_="<<tUnit_<<", maxSample_*tUnit_="<<maxSample_*tUnit_<<endl;
             return make_pair(maxSample_*tUnit_, 1);
     
         //---find first sample above Amax*frac
@@ -153,6 +277,7 @@ pair<float, float> WFClass::GetTimeCF(float frac, int nFitSamples, int min, int 
         cfTime_ = (fitAmpMax_ * frac - A) / B;
     }
 
+    // cout<<"time_maximum="<<cfTime_<<endl;
     return make_pair(cfTime_, chi2cf_);
 }
 
@@ -304,6 +429,10 @@ void WFClass::Reset()
     fitAmpMax_ = -1;
     fitTimeMax_ = -1;
     fitChi2Max_ = -1;
+    time_fscint_ = -1;
+    amp_fscint_ = -1;
+    P_clock_ = -1;
+    t0_clock_ = -1;
     baseline_ = -1;
     bRMS_ = -1;
     cfSample_ = -1;
@@ -318,6 +447,7 @@ void WFClass::Reset()
     tempFitTime_ = -1;
     tempFitAmp_ = -1;
     samples_.clear();
+    times_.clear();
 } 
 
 //---------estimate the baseline in a given range and then subtract it from the signal----
@@ -328,6 +458,8 @@ WFBaseline WFClass::SubtractBaseline(int min, int max)
         bWinMin_=min;
         bWinMax_=max;
     }
+    // cout<<"bWinMin_="<<bWinMin_<<", bWinMax_="<<bWinMax_<<endl;
+
     //---compute baseline
     float baseline_=0;
     for(int iSample=bWinMin_; iSample<bWinMax_; ++iSample)
@@ -339,14 +471,21 @@ WFBaseline WFClass::SubtractBaseline(int min, int max)
         baseline_ += samples_.at(iSample);
     }
     baseline_ = baseline_/((float)(bWinMax_-bWinMin_));
+    // cout<<"baseline_="<<baseline_<<endl;
+
+    // for(unsigned int iSample=0; iSample<samples_.size(); ++iSample)
+        // if (iSample<10) cout<<"iSample="<<iSample<<", val="<<(samples_.at(iSample))<<", val-baseline="<<(samples_.at(iSample) - baseline_)<<endl;
+
     //---subtract baseline
     for(unsigned int iSample=0; iSample<samples_.size(); ++iSample)
         samples_.at(iSample) = (samples_.at(iSample) - baseline_);    
+        
     //---interpolate baseline
     BaselineRMS();
     float A=0, B=0;
     float chi2 = LinearInterpolation(A, B, bWinMin_, bWinMax_);
     
+    // cout<<"bRMS_="<<bRMS_<<", A="<<A<<", B="<<B<<", chi2="<<chi2<<endl;    
     return WFBaseline{baseline_, bRMS_, A, B, chi2};
 }
 
@@ -559,6 +698,7 @@ void WFClass::Print()
 WFClass& WFClass::operator=(const WFClass& origin)
 {
     samples_ = origin.samples_;
+    times_= origin.times_;
     tUnit_ = origin.tUnit_;
     polarity_ = origin.polarity_;
     sWinMin_ = origin.sWinMin_;
@@ -567,6 +707,10 @@ WFClass& WFClass::operator=(const WFClass& origin)
     bWinMax_ = origin.bWinMax_;
     maxSample_ = origin.maxSample_;
     fitAmpMax_ = origin.fitAmpMax_;
+    time_fscint_ = origin.time_fscint_;
+    amp_fscint_ = origin.amp_fscint_;
+    P_clock_ = origin.P_clock_;
+    t0_clock_ = origin.t0_clock_;
     baseline_ = origin.baseline_;
     bRMS_ = origin.bRMS_;
     cfSample_ = origin.cfSample_;

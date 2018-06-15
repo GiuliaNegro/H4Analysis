@@ -16,6 +16,7 @@
 #include "TMath.h"
 #include "TH1F.h"
 #include "TF1.h"
+#include "TGraph.h"
 
 using namespace std;
 
@@ -59,6 +60,9 @@ public:
     float                        GetIntegral(int min=-1, int max=-1);
     float                        GetModIntegral(int min=-1, int max=-1);
     virtual float                GetSignalIntegral(int riseWin, int fallWin);
+    pair<float, float>           GetTimeAmpFscint(float tfitmin=-3.5, float tfitmax=4.5);
+    pair<float, float>           GetPeriodPhase(int i0_clock=8, float tfitmin=-1.3, float tfitmax=1.3);
+    float                        GetTime0();
     //---setters---
     inline void                  SetTrigRef(float trigRef){trigRef_ = trigRef;};
     void                         SetSignalWindow(int min, int max);
@@ -66,6 +70,7 @@ public:
     void                         SetTemplate(TH1* templateWF=NULL);
     //---utils---
     void                         Reset();
+    void                         AddTime();
     void                         AddSample(float sample) {samples_.push_back(polarity_*sample);};
     WFBaseline                   SubtractBaseline(int min=-1, int max=-1);
     WFFitResults                 TemplateFit(float offset=0., int lW=0, int hW=0);
@@ -85,7 +90,9 @@ protected:
     double                       TemplateChi2(const double* par=NULL);
     
 protected:
+    TGraph*        pulse_;
     vector<double> samples_;
+    vector<double> times_;
     float          tUnit_;
     int            polarity_;
     float          trigRef_;
@@ -111,6 +118,10 @@ protected:
     int            fWinMax_;
     float          tempFitTime_;
     float          tempFitAmp_;
+    float          time_fscint_;
+    float          amp_fscint_;  
+    float          P_clock_;
+    float          t0_clock_;
     ROOT::Math::Interpolator* interpolator_;
 };
 
