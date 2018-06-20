@@ -35,6 +35,10 @@ public:
     int*  nFibresOnY;
     float* X;
     float* Y;
+    float* iX_best;
+    float* iY_best;
+    float posX_best;
+    float posY_best;
 };
 
 #endif

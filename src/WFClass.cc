@@ -162,7 +162,7 @@ pair<float, float> WFClass::GetTimeAmpFscint(float tfitmin, float tfitmax)
 
     amp_fscint_=fscint.GetMaximum();
     time_fscint_=fscint.GetMaximumX();
-    cout<<"i_max="<<maxSample_<<", amp_fscint="<<amp_fscint_<<", time_fscint="<<time_fscint_<<endl;
+    // cout<<"i_max="<<maxSample_<<", amp_fscint="<<amp_fscint_<<", time_fscint="<<time_fscint_<<endl;
 
     return make_pair(time_fscint_, amp_fscint_);
 }
