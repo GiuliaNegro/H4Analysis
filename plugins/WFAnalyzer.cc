@@ -14,7 +14,8 @@ bool WFAnalyzer::Begin(CfgManager& opts, uint64* index)
     timeRecoTypes_ = opts.GetOpt<vector<string> >(instanceName_+".timeRecoTypes");
 
     //---channels setup
-    string templateTag="prof";
+    // string templateTag="prof";
+    string templateTag="px";
     if(opts.OptExist(instanceName_+".templateTags"))
         for(auto& tag : opts.GetOpt<vector<string> >(instanceName_+".templateTags"))
             for(auto& run : opts.GetOpt<vector<string> >(tag+".runList"))
@@ -28,7 +29,10 @@ bool WFAnalyzer::Begin(CfgManager& opts, uint64* index)
         if(opts.OptExist(channel+".templateFit.file"))
         {            
             TFile* templateFile = TFile::Open(opts.GetOpt<string>(channel+".templateFit.file", 0).c_str(), ".READ");
-            TH1* wfTemplate=(TH1*)templateFile->Get((opts.GetOpt<string>(channel+".templateFit.file", 1)+
+            // TH1* wfTemplate=(TH1*)templateFile->Get((opts.GetOpt<string>(channel+".templateFit.file", 1)+
+                                                     // +"_"+templateTag).c_str());
+            TCanvas* canv = (TCanvas*)templateFile->Get("outputCanv");
+            TH1* wfTemplate=(TH1*)canv->FindObject((opts.GetOpt<string>(channel+".templateFit.file", 1)+
                                                      +"_"+templateTag).c_str());
             templates_[channel] = (TH1F*) wfTemplate->Clone();
             templates_[channel] -> SetDirectory(0);
@@ -174,6 +178,7 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
             digiTree_.fit_ampl[outCh] = fitResults.ampl;
             digiTree_.fit_time[outCh] = fitResults.time;
             digiTree_.fit_chi2[outCh] = fitResults.chi2;
+            // cout<<"fit_ampl="<<fitResults.ampl<<", fit_time="<<fitResults.time<<endl;
         }            
         //---calibration constant for each channel if needed
         if(opts.OptExist(channel+".calibration.calibrationConst"))
@@ -192,8 +197,8 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
                 outWFTree_.WF_ch.push_back(outCh);
                 outWFTree_.WF_time.push_back(jSample*tUnit);
                 outWFTree_.WF_val.push_back(analizedWF->at(jSample));
-                // if (jSample<10)
-                    // cout<<channel<<": ch="<<outCh<<", time="<<jSample*tUnit<<", val="<<analizedWF->at(jSample)<<endl;
+                // if (jSample<10) 
+                    // cout<<channel<<": ch="<<outCh<<", sample="<<jSample<<", time="<<jSample*tUnit<<", val="<<analizedWF->at(jSample)<<endl;
             }
         }
         //---increase output tree channel counter

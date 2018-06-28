@@ -10,6 +10,7 @@
 #include "interface/WFClassNINO.h"
 #include "interface/WFClassClock.h"
 #include "interface/WFViewer.h"
+#include "TCanvas.h"
 
 class WFAnalyzer: public PluginBase
 {
