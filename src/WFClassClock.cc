@@ -16,7 +16,7 @@ pair<float, float> WFClassClock::GetTime(string method, vector<float>& params)
     {
         if(params.size()==0)
             return GetTimeCLK();
-        else if(params.size()==2)
+        else if(params.size()==2) 
             return GetTimeCLK(params[0], params[1]);
         else if(params.size()==3)
             return GetTimeCLK(params[0], params[1], params[2]);
@@ -34,9 +34,8 @@ pair<float, float> WFClassClock::GetTime(string method, vector<float>& params)
             return GetTimeLE(params[0]);
         else if(params.size()<4)
             return GetTimeLE(params[0], params[1], params[2]);
-        else
+        else 
             return GetTimeLE(params[0], params[1], params[2], params[3], params[4]);
-
     }
    
     cout << ">>>ERROR, WFClassClock: time reconstruction method <" << method << "> not supported" << endl;

@@ -34,6 +34,7 @@ bool WFAnalyzer::Begin(CfgManager& opts, uint64* index)
             TCanvas* canv = (TCanvas*)templateFile->Get("outputCanv");
             TH1* wfTemplate=(TH1*)canv->FindObject((opts.GetOpt<string>(channel+".templateFit.file", 1)+
                                                      +"_"+templateTag).c_str());
+
             templates_[channel] = (TH1F*) wfTemplate->Clone();
             templates_[channel] -> SetDirectory(0);
             templateFile->Close();
@@ -164,7 +165,8 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
         if (channel=="MCP" || channel=="TRG") 
             digiTree_.t0[outCh] = WFs_[channel]->GetTime0(); 
         else 
-            digiTree_.t0[outCh] = -99;
+        digiTree_.t0[outCh] = -99;
+        
 
 
         //---template fit (only specified channels)

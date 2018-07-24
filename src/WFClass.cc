@@ -42,7 +42,7 @@ float WFClass::GetAmpMax(int min, int max)
         if(samples_.at(iSample) > samples_.at(maxSample_)) 
             maxSample_ = iSample;
     }    
-    // cout<<"maxSample_="<<maxSample_<<", maxVal="<<samples_.at(maxSample_)<<endl;
+    // cout<<"maxSample_="<<maxSample_<<", x="<<maxSample_*tUnit_<<", maxVal="<<samples_.at(maxSample_)<<endl;
     return samples_.at(maxSample_);
 }
 
@@ -158,6 +158,7 @@ pair<float, float> WFClass::GetTimeAmpFscint(float tfitmin, float tfitmax)
     fscint.SetParameter(1,maxSample_*tUnit_-2.*14.);
     fscint.SetParameter(2,14.);
     fscint.SetParameter(3,-1.);
+
     pulse_->Fit(&fscint,"QRSO","",tfit_min,tfit_max);  
 
     amp_fscint_=fscint.GetMaximum();
@@ -341,8 +342,10 @@ float WFClass::GetSignalIntegral(int riseWin, int fallWin)
     for(int iSample=maxSample_-riseWin; iSample<maxSample_+fallWin; ++iSample)
     {
         //---if signal window goes out of bound return a bad value
-        if(iSample >= int(samples_.size()) || iSample < 0)
-            return -1000;        
+        if(iSample < 0)
+            continue;
+        if(iSample >= samples_.size())
+	    break;
         integral += samples_.at(iSample);
     }
 
@@ -410,7 +413,6 @@ void WFClass::SetTemplate(TH1* templateWF)
         y.push_back(templateWF->GetBinContent(iBin));
     }
     interpolator_->SetData(x, y);
-
 
 
     return;
@@ -499,6 +501,7 @@ WFFitResults WFClass::TemplateFit(float offset, int lW, int hW)
         GetAmpMax();    
         fWinMin_ = maxSample_ + int(offset/tUnit_) - lW;
         fWinMax_ = maxSample_ + int(offset/tUnit_) + hW;
+
         //---setup minimization
         ROOT::Math::Functor chi2(this, &WFClass::TemplateChi2, 2);
         ROOT::Math::Minimizer* minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
@@ -507,8 +510,8 @@ WFFitResults WFClass::TemplateFit(float offset, int lW, int hW)
         minimizer->SetTolerance(1e-3);
         minimizer->SetPrintLevel(0);
         minimizer->SetFunction(chi2);
-        minimizer->SetLimitedVariable(0, "amplitude", GetAmpMax(), 1e-2, -4000., 4000.);
-        minimizer->SetLimitedVariable(1, "deltaT", maxSample_*tUnit_, 1e-2, -1024.*tUnit_, 1024.*tUnit_);
+        minimizer->SetLimitedVariable(0, "amplitude", GetAmpMax(), 1e-2, 0., GetAmpMax()*2.);
+        minimizer->SetLimitedVariable(1, "deltaT", maxSample_*tUnit_, 1e-2, fWinMin_*tUnit_, fWinMax_*tUnit_);
         //---fit
         minimizer->Minimize();
         tempFitAmp_ = minimizer->X()[0];
@@ -516,7 +519,7 @@ WFFitResults WFClass::TemplateFit(float offset, int lW, int hW)
 
         delete minimizer;        
     }
-    
+
     return WFFitResults{tempFitAmp_, tempFitTime_, TemplateChi2()/(fWinMax_-fWinMin_-2)};
 }
 
@@ -664,7 +667,7 @@ double WFClass::TemplateChi2(const double* par)
 {
     double chi2 = 0;
     double delta = 0;
-    for(int iSample=fWinMin_; iSample<fWinMax_; ++iSample)
+    for(int iSample=fWinMin_; iSample<=fWinMax_; ++iSample)
     {
         if(iSample < 0 || iSample >= int(samples_.size()))
         {
@@ -675,14 +678,14 @@ double WFClass::TemplateChi2(const double* par)
         {
             //---fit: par[0]*ref_shape(t-par[1]) par[0]=amplitude, par[1]=DeltaT
             //---if not fitting return chi2 value of best fit
-            if(par)
+            if(par) 
                 delta = (samples_[iSample] - par[0]*interpolator_->Eval(iSample*tUnit_-par[1]))/bRMS_;
             else
                 delta = (samples_[iSample] - tempFitAmp_*interpolator_->Eval(iSample*tUnit_-tempFitTime_))/bRMS_;
+            
             chi2 += delta*delta;
         }
     }
-
     return chi2;
 }
 
