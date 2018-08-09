@@ -151,6 +151,11 @@ pair<float, float> WFClass::GetTimeAmpFscint(float tfitmin, float tfitmax)
     double tfit_min=(maxSample_+tfitmin)*tUnit_;
     double tfit_max=(maxSample_+tfitmax)*tUnit_;
 
+    if ( isnan( float(samples_.at(maxSample_))) ) {
+        // cout<<"maxSample_="<<maxSample_<<", samples_[maxSample_]="<<samples_.at(maxSample_)<<endl;
+        return make_pair(-99, -99);
+    }
+
     TF1 fscint("fscint","(x<[1]-[2]*[3])?0.:[0]*(x-[1]+[2]*[3])*(x-[1]+[2]*[3])*exp(-(x-[1])*(x-[1])/2./[2]/[2])",tfit_min,tfit_max);
     // TF1 fscint("fscint","(x<[1]-[2]*[3])?0.:[0]*(x-[1]+[2]*[3])*(x-[1]+[2]*[3])*exp(-(x-[1])*(x-[1])/2./[2]/[2])",0.,1000.);
     // fscint->SetNpx(10000);
@@ -159,6 +164,7 @@ pair<float, float> WFClass::GetTimeAmpFscint(float tfitmin, float tfitmax)
     fscint.SetParameter(2,14.);
     fscint.SetParameter(3,-1.);
 
+    // cout<<"maxSample_="<<maxSample_<<", samples_[maxSample_]="<<samples_.at(maxSample_)<<endl;
     pulse_->Fit(&fscint,"QRSO","",tfit_min,tfit_max);  
 
     amp_fscint_=fscint.GetMaximum();
@@ -404,15 +410,24 @@ void WFClass::SetTemplate(TH1* templateWF)
     interpolator_ = new ROOT::Math::Interpolator(0, ROOT::Math::Interpolation::kCSPLINE);
     tempFitTime_ = templateWF->GetBinCenter(templateWF->GetMaximumBin());
     tempFitAmp_ = -1;
+    // cout<<"maxBin="<<templateWF->GetMaximumBin()<<", tempFitTime_="<<tempFitTime_<<endl;
+    // for (int i=0; i<10; i++) 
+        // cout<<"bin "<<i<<": time="<<templateWF->GetBinCenter(i)-tempFitTime_<<", val="<<templateWF->GetBinContent(i)<<endl;
 
     //---fill interpolator data
     vector<double> x, y;
     for(int iBin=1; iBin<=templateWF->GetNbinsX(); ++iBin)
     {
+        // if (iBin<500)
+            // cout<<"iBin="<<iBin<<": x="<<templateWF->GetBinCenter(iBin)-tempFitTime_<<", y="<<templateWF->GetBinContent(iBin)<<endl;
         x.push_back(templateWF->GetBinCenter(iBin)-tempFitTime_);
         y.push_back(templateWF->GetBinContent(iBin));
     }
     interpolator_->SetData(x, y);
+    // cout<<"set interpolator"<<endl;
+    // for (int i=0; i<65; i++) 
+        // cout<<"i="<<i<<", x="<<i*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(i*tUnit_-tempFitTime_)<<endl;
+        // cout<<"i="<<i<<", x="<<i*0.125-tempFitTime_<<", val="<<interpolator_->Eval(i*0.125-tempFitTime_)<<endl;
 
 
     return;
@@ -510,10 +525,12 @@ WFFitResults WFClass::TemplateFit(float offset, int lW, int hW)
         minimizer->SetTolerance(1e-3);
         minimizer->SetPrintLevel(0);
         minimizer->SetFunction(chi2);
+        // minimizer->SetLimitedVariable(0, "amplitude", GetAmpMax(), 1e-2, -4000., 8000.);
+        // minimizer->SetLimitedVariable(1, "deltaT", maxSample_*tUnit_, 1e-2, -1024.*tUnit_, 1024.*tUnit_);
         minimizer->SetLimitedVariable(0, "amplitude", GetAmpMax(), 1e-2, 0., GetAmpMax()*2.);
         minimizer->SetLimitedVariable(1, "deltaT", maxSample_*tUnit_, 1e-2, fWinMin_*tUnit_, fWinMax_*tUnit_);
         //---fit
-        minimizer->Minimize();
+        minimizer->Minimize();        
         tempFitAmp_ = minimizer->X()[0];
         tempFitTime_ = minimizer->X()[1];
 
@@ -667,6 +684,11 @@ double WFClass::TemplateChi2(const double* par)
 {
     double chi2 = 0;
     double delta = 0;
+
+    // for (int i=0; i<10; i++) 
+    //     cout<<"x="<<i*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(i*tUnit_-tempFitTime_)<<endl;
+
+    // cout<<"fWinMin_="<<fWinMin_<<", fWinMax_="<<fWinMax_<<", xMin="<<fWinMin_*tUnit_<<", xMax="<<fWinMax_*tUnit_<<endl;
     for(int iSample=fWinMin_; iSample<=fWinMax_; ++iSample)
     {
         if(iSample < 0 || iSample >= int(samples_.size()))
@@ -678,14 +700,19 @@ double WFClass::TemplateChi2(const double* par)
         {
             //---fit: par[0]*ref_shape(t-par[1]) par[0]=amplitude, par[1]=DeltaT
             //---if not fitting return chi2 value of best fit
-            if(par) 
+            if(par) {
+                // cout<<"par0="<<par[0]<<", par1="<<par[1]<<", x="<<iSample*tUnit_-par[1]<<", val="<<interpolator_->Eval(iSample*tUnit_-par[1])<<endl;
                 delta = (samples_[iSample] - par[0]*interpolator_->Eval(iSample*tUnit_-par[1]))/bRMS_;
-            else
+            }
+            else{
+                // cout<<"eval interpolator: "<<"x="<<iSample*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(iSample*tUnit_-tempFitTime_)<<endl;
                 delta = (samples_[iSample] - tempFitAmp_*interpolator_->Eval(iSample*tUnit_-tempFitTime_))/bRMS_;
-            
+            }
             chi2 += delta*delta;
+            // cout<<"delta="<<delta<<", chi2="<<chi2<<endl;            
         }
     }
+    // cout<<"chi2="<<chi2<<endl;
     return chi2;
 }
 

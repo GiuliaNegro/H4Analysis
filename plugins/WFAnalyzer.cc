@@ -34,8 +34,13 @@ bool WFAnalyzer::Begin(CfgManager& opts, uint64* index)
             TCanvas* canv = (TCanvas*)templateFile->Get("outputCanv");
             TH1* wfTemplate=(TH1*)canv->FindObject((opts.GetOpt<string>(channel+".templateFit.file", 1)+
                                                      +"_"+templateTag).c_str());
+            // for (int i=0; i<10; i++) 
+            //     cout<<"bin "<<i<<": time"<<(i*0.15)-25.<<", val="<<wfTemplate->GetBinContent(i)<<endl;
 
             templates_[channel] = (TH1F*) wfTemplate->Clone();
+            // for (int i=0; i<10; i++) 
+                // cout<<"bin "<<i<<": time="<<(i*0.15)-25.<<", val="<<templates_[channel]->GetBinContent(i)<<endl;
+
             templates_[channel] -> SetDirectory(0);
             templateFile->Close();
         }
@@ -149,30 +154,33 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
         }
 
 
-        WFs_[channel]->AddTime();
+        //---new functions for time clock,trigger,mcp and max with fscint
+        if(opts.OptExist(instanceName_+".newFunctions")) {
+            WFs_[channel]->AddTime();
 
-        digiTree_.time_fscint[outCh] = WFs_[channel]->GetTimeAmpFscint().first;
-        digiTree_.amp_fscint[outCh] = WFs_[channel]->GetTimeAmpFscint().second;
+            digiTree_.time_fscint[outCh] = WFs_[channel]->GetTimeAmpFscint().first;
+            digiTree_.amp_fscint[outCh] = WFs_[channel]->GetTimeAmpFscint().second;
 
-        if (channel=="CLK") {
-            digiTree_.period[outCh] = WFs_[channel]->GetPeriodPhase().first;
-            digiTree_.phase[outCh] = WFs_[channel]->GetPeriodPhase().second;
-        } else {
-            digiTree_.period[outCh] = -99;
-            digiTree_.phase[outCh] = -99;
+            if (channel=="CLK") {
+                digiTree_.period[outCh] = WFs_[channel]->GetPeriodPhase().first;
+                digiTree_.phase[outCh] = WFs_[channel]->GetPeriodPhase().second;
+            } else {
+                digiTree_.period[outCh] = -99;
+                digiTree_.phase[outCh] = -99;
+            }
+
+            if (channel=="MCP" || channel=="MCP1" || channel=="MCP2" || channel=="TRG") 
+                digiTree_.t0[outCh] = WFs_[channel]->GetTime0(); 
+            else 
+                digiTree_.t0[outCh] = -99;
         }
-
-        if (channel=="MCP" || channel=="TRG") 
-            digiTree_.t0[outCh] = WFs_[channel]->GetTime0(); 
-        else 
-        digiTree_.t0[outCh] = -99;
         
-
 
         //---template fit (only specified channels)
         WFFitResults fitResults{-1, -1000, -1};
         if(opts.OptExist(channel+".templateFit.file"))
         {
+            // cout<<"SetTemplate"<<endl;
             WFs_[channel]->SetTemplate(templates_[channel]);
             fitResults = WFs_[channel]->TemplateFit(opts.GetOpt<float>(channel+".templateFit.fitWin", 0),
                                                     opts.GetOpt<int>(channel+".templateFit.fitWin", 1),
@@ -200,6 +208,7 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
                 outWFTree_.WF_time.push_back(jSample*tUnit);
                 outWFTree_.WF_val.push_back(analizedWF->at(jSample));
                 // if (jSample<10) 
+                // if (jSample>850 && jSample<890 && channel=="C3_T")
                     // cout<<channel<<": ch="<<outCh<<", sample="<<jSample<<", time="<<jSample*tUnit<<", val="<<analizedWF->at(jSample)<<endl;
             }
         }
