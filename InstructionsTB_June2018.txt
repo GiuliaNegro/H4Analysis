@@ -1,0 +1,186 @@
+- To install the code and setup the environment: 
+
+	git clone git@github.com:GiuliaNegro/H4Analysis.git 
+	cd H4Analysis
+	git checkout vfe_dev
+	source script/setup.sh 
+	make
+
+[more detailed instructions here: https://github.com/simonepigazzini/H4Analysis]
+
+
+
+- TB data stored on eos: 
+	/eos/cms/store/group/dpg_ecal/comm_ecal/upgrade/testbeam/ECALTB_H4_<period>/data/raw/DataTree/
+
+
+
+- To make reconstruction of raw events and generate template of a particular channel: 
+ 
+	./bin/H4Reco cfg/reco_June2018.cfg <run_number>
+
+-> in the first block of the cfg file: 
+	'outNameSuffix' = first part of the ntuple name
+	'path2data' = eos directory in which the data are stored
+	'pluginList' = list of used plugins, each dedicated to a specific task 	
+	'run' = default run number overrided by the one specified in the command line
+	'maxEvents' = number of events on which the reconstruction is done
+	'maxFiles' = number of files on which the reconstruction is done
+-> 'digitizer' and 'VFEs' list the names of channels (defined below) on which the reconstruction is done
+-> the 'H4Hodo' block calls the HodoReco.cc plugin (to reconstruct the hodoscope hits)
+-> the 'DigiReco' block calls the DigitizerReco.cc plugin for the digi reconstruction and specify the channels on which the reconstruction is done 
+-> the 'WFReco' block calls the WFAnalyzer.cc plugin for the waveform reconstruction, specifying the channels and other options 
+-> the 'T2F' block calls the FFTAnalyzer.cc plugin to generate the template, specifying the channels and other options
+-> the 'DFTTmpl' block calls the DFTTemplate.cc plugin to make the template by artificially oversampling the original signal, specifying the channels and other options
+-> the 'WFRecoFFT' block calls the WFAnalyzer.cc plugin for the waveform reconstruction with the template values, specifying the new channels and other options
+-> the blocks corresponding to the different channels (e.g. <C5>, <C4>, ...) specify different settings and options for a single channel, to modify according to the setup used in the TB: in particular, tUnit is set to 6.25 (8.33) ns for runs at 160 (120) MHz
+
+
+
+[In the following, the FuriousPlotter repository (https://github.com/simonepigazzini/FuriousPlotter - to be installed in the H4Analysis directory) is used to make plots, but this can also be done writing a macro reading the ntuples or directly on root] 
+
+
+- To make plots of different variables:  
+	
+	python FuriousPlotter/draw.py -c cfg/drawPlots_June2018.cfg  
+	
+-> in the first part of the cfg file: 
+	'outDir' = directory in which plots are saved 
+	'src2018' = input file and name of TTree taken
+	'VFEs', 'digitizer' = list of channels for which the plots are done
+-> the 'HODOSCOPE' block defines the plots for the hodoscope variables 
+-> the 't0 MCP, CLK, TRG' block defines the plots for the timing variables of MCP, clock, and trigger
+-> the 'AMP, TIME digitizer' block defines the plots for the maximum amplitude and time of the MCPs
+-> the 'AMP, TIME, NOISE VFEs' block defines the plots for different variables (max amplitude, time, noise, ...) of the VFEs
+-> the 'AMP MAP' block defines the amplitude map plot for the different channels
+-> the 'AMP VS TIME' block defines the shapes (amplitude vs time plot)for the different channels
+-> to plot a variable of a tree different from the TTree defined in 'src2018', use <nameTree.nameVariable> (e.g. 'digi_tmpl.amp_max[$ch]')
+
+
+
+- To get template shape of a single channel at a certain energy: 
+	
+	python FuriousPlotter/draw.py -c cfg/drawTmpl_C3_June2018.cfg
+
+-> similar to 'cfg/drawPlots_June2018.cfg' 
+-> the 'shape_tmpl_11433_25GeV_C3_T' block defines the plot for the shape of the C3 crystal at 25 GeV 
+-> the 'shape_tmpl_11423_50GeV_C3_T' block defines the plot for the shape of the C3 crystal at 50 GeV 
+
+
+
+- To get TH1 of template shape from TProfile (obtained with 'cfg/drawTmpl_C3_June2018.cfg'), in root: 
+
+	.L test/profileToTH1.C++
+	profileToTH1(<run_number>, "<name_file_with_tmpl>") 
+	( e.g. profileToTH1(11433, "shape_tmpl_11433_25GeV_C3_T") )
+
+-> TH1 needed by 'plugins/WFAnalizer.cc' in the next step
+
+
+
+- To reconstruct events with template fit: 
+
+	./bin/H4Reco cfg/templateFit_June2018.cfg <run_number>
+
+-> similar to 'cfg/reco_June2018.cfg'
+-> the 'templateFit' block inside a channel block defines the file, the name of the TH1, and the range around the peak used for the template fit
+
+
+
+- To make plots of different variables after template fit: 
+
+	python FuriousPlotter/draw.py -c cfg/drawPlots_tmplFit_June2018.cfg
+
+-> similar to 'cfg/drawPlots_June2018.cfg' 
+-> the 'template fit' block defines the plots for the amplitude and time obtained by the template fit of the VFEs
+-> the 'dt fit VFE-MCP' block defines the plots for the deltaT between 1VFE and 1MCP
+-> the 'dt MCP1-MCP2' block defines the plot for the deltaT between 2 MCPs
+-> the 'Amp_eff, res MCP' block defines the plots for the effective amplitude (Aeff), the deltaT vs Aeff, and the resolution of the 2 MCPs
+-> the 'dt digitizer-VFE' block defines the plots for deltaT distributions between 1VFE and 1MCP or the trigger
+
+
+
+- To make gaussian fit of deltaT between VFE-MCP (plots obtained with 'cfg/drawPlots_tmplFit_June2018.cfg'), in root:
+
+	.L test/fitDeltaT.C++ 	
+	fitDeltaT(<run_number>)
+
+-> choose nameFile according to which deltaT you want to fit 
+-> sigma obtained by the fit is used in 'test/fitTimingRes.C'
+
+
+
+- To make CB fit of amplitude peak (from plot obtained with 'cfg/drawPlots_tmplFit_June2018.cfg') and get max/noise values (from plots obtained with 'cfg/drawPlots_June2018.cfg'), in root: 
+	
+	.L test/fitAmplPeak.C++ 
+	fitAmplPeak(<run_number>)
+
+-> mean value obtained by the fit is used in 'test/fitTimingRes.C'
+
+
+
+- To make timing resolution of 2 MCPs, performing a gaussian fit in each vertical bin of 'dt0_MCP1_MCP2_vs_amp_eff' plot, obtained with 'cfg/drawPlots_tmplFit_June2018.cfg' launched on all the runs at different energies for a specific rate-temperature configuration (file obtained with 'hadd <fileOutput.root> <file1.root> <file2.root> ...'), and then fitting the sigma of the gaussian fit as a function of the effective amplitude, in root: 
+	
+	.L test/fitMCPresolution.C++
+	fitMCPresolution()
+
+-> change inputDir w.r.t. the correct configuration
+-> parameters values obtained by the fit are used in 'cfg/drawPlots_tmplFit_June2018.cfg' to draw event-by-event MCPs resolution for each energy run (plot 'resMCPs')
+
+
+
+- To get value of MCP resolution, estimated event-by-event for each energy run with the 'resMCPs' plot (obtained with 'cfg/drawPlots_tmplFit_June2018.cfg' using parametrized function) and taken as maximum of the distribution, in root: 
+
+	.L test/findMaxResMCP.C++
+	findMaxResMCP(<run_number>) 
+
+-> max value used by 'test/fitTimingRes.C' to get the timing resolution of the crystal
+
+
+
+- To make timing resolution fit as a function of amplitude/noise, in root: 
+
+	.L test/fitTimingRes.C++
+	fitTimingRes()
+
+-> insert values of timing resolution (taken from 'test/fitDeltaT.C' for VFE-MCP and from 'test/findMaxResMCP.C' for MCPs), amplitude and noise (taken from 'test/fitAmplPeak.C') for the correct configuration
+-> change name of outputFile w.r.t. the correct configuration
+
+
+
+- To make plot with all the results for the different configurations, in root: 
+
+	.L test/drawResultsTiming.C++ 
+	drawResultsTiming()
+
+-> take outputFiles of 'test/fitTimingRes.C' as inputFiles
+
+
+
+### Some macros to make useful plots ###
+
+- To draw template shapes of a single channel at different energies (in root):
+
+	.L test/drawTmpl_differentEnergies_June2018.C++	
+	drawTmpl_En()
+
+-> change name of inputFiles and outputFile w.r.t. the correct configuration
+
+
+- To make ratio of template shapes of a single channel at different energies keeping one of them as reference (e.g. 150 GeV), in root:
+
+	.L test/drawRatioTmpl_differentEnergies_June2018.C++
+	drawRatioTmpl_En()
+
+-> change name of inputFiles and outputFile w.r.t. the correct configuration
+
+
+- To make ratio of template shapes of a single channel at different energies for 120 MHz with respect to 160 MHz, in root: 
+
+	.L test/drawRatioTmpl_differentRates_June2018.C++
+	drawRatioTmpl_Rates()
+
+########################################
+
+
+
