@@ -32,8 +32,9 @@ bool WFAnalyzer::Begin(CfgManager& opts, uint64* index)
             // TH1* wfTemplate=(TH1*)templateFile->Get((opts.GetOpt<string>(channel+".templateFit.file", 1)+
                                                      // +"_"+templateTag).c_str());
             TCanvas* canv = (TCanvas*)templateFile->Get("outputCanv");
-            TH1* wfTemplate=(TH1*)canv->FindObject((opts.GetOpt<string>(channel+".templateFit.file", 1)+
-                                                     +"_"+templateTag).c_str());
+            // TH1* wfTemplate=(TH1*)canv->FindObject((opts.GetOpt<string>(channel+".templateFit.file", 1)+
+            //                                          +"_"+templateTag).c_str());
+            TH1* wfTemplate=(TH1*)canv->FindObject((opts.GetOpt<string>(channel+".templateFit.file", 1)).c_str());
             // for (int i=0; i<10; i++) 
             //     cout<<"bin "<<i<<": time"<<(i*0.15)-25.<<", val="<<wfTemplate->GetBinContent(i)<<endl;
 
@@ -120,6 +121,8 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
         digiTree_.time_max[outCh] = interpolAmpMax.time;
         digiTree_.chi2_max[outCh] = interpolAmpMax.chi2;
         // cout<<"fitTime="<<interpolAmpMax.time<<", fitAmp="<<interpolAmpMax.ampl<<", fitChi2="<<interpolAmpMax.chi2<<endl;
+
+        digiTree_.maxSample[outCh] = WFs_[channel]->GetMaxSample(); 
 
         digiTree_.maximum[outCh] = WFs_[channel]->GetAmpMax();
 
@@ -211,6 +214,16 @@ bool WFAnalyzer::ProcessEvent(const H4Tree& event, map<string, PluginBase*>& plu
                 // if (jSample>850 && jSample<890 && channel=="C3_T")
                     // cout<<channel<<": ch="<<outCh<<", sample="<<jSample<<", time="<<jSample*tUnit<<", val="<<analizedWF->at(jSample)<<endl;
             }
+
+            // int maxSample = WFs_[channel]->GetMaxSample(); 
+            // cout<<"maxSample="<<maxSample<<", x_max="<<maxSample*tUnit<<", val_max="<<analizedWF->at(maxSample)<<endl;
+            // for(unsigned int jSample=maxSample-1; jSample<maxSample+2; ++jSample){
+            //     if (channel=="C3") 
+            //         cout<<channel<<": ch="<<outCh<<", sample="<<jSample<<", time="<<jSample*tUnit<<", val="<<analizedWF->at(jSample)<<
+            //         ", diffTime="<<fabs(fitResults.time-(jSample*tUnit))<<", diffVal="<<fabs(fitResults.ampl-analizedWF->at(jSample))<<endl;
+            // }
+
+
         }
         //---increase output tree channel counter
         ++outCh;
