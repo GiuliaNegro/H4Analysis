@@ -410,9 +410,10 @@ void WFClass::SetTemplate(TH1* templateWF)
     interpolator_ = new ROOT::Math::Interpolator(0, ROOT::Math::Interpolation::kCSPLINE);
     tempFitTime_ = templateWF->GetBinCenter(templateWF->GetMaximumBin());
     tempFitAmp_ = -1;
-    // cout<<"maxBin="<<templateWF->GetMaximumBin()<<", tempFitTime_="<<tempFitTime_<<endl;
-    // for (int i=0; i<10; i++) 
-        // cout<<"bin "<<i<<": time="<<templateWF->GetBinCenter(i)-tempFitTime_<<", val="<<templateWF->GetBinContent(i)<<endl;
+    cout<<"nBins="<<templateWF->GetNbinsX()<<", maxBin="<<templateWF->GetMaximumBin()<<", tempFitTime_="<<tempFitTime_<<", val="<<templateWF->GetBinContent(templateWF->GetMaximumBin())<<endl;
+    // for (int i=145; i<165; i++) 
+        // cout<<"bin "<<i<<": time="<<templateWF->GetBinCenter(i)<<", val="<<templateWF->GetBinContent(i)<<", timeShifted="<<templateWF->GetBinCenter(i)-tempFitTime_<<endl;
+
 
     //---fill interpolator data
     vector<double> x, y;
@@ -425,10 +426,11 @@ void WFClass::SetTemplate(TH1* templateWF)
     }
     interpolator_->SetData(x, y);
     // cout<<"set interpolator"<<endl;
-    // for (int i=0; i<65; i++) 
-        // cout<<"i="<<i<<", x="<<i*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(i*tUnit_-tempFitTime_)<<endl;
+    // for (int i=145; i<165; i++) 
+        // cout<<"i="<<i<<", tUnit_="<<tUnit_<<", x="<<i*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(i*tUnit_-tempFitTime_)<<endl;
         // cout<<"i="<<i<<", x="<<i*0.125-tempFitTime_<<", val="<<interpolator_->Eval(i*0.125-tempFitTime_)<<endl;
-
+        // cout<<"i="<<i<<", x="<<i-tempFitTime_<<", val="<<interpolator_->Eval(i-tempFitTime_)<<endl;
+        // cout<<"i="<<i<<", x="<<templateWF->GetBinCenter(i)-tempFitTime_<<", val="<<interpolator_->Eval(templateWF->GetBinCenter(i)-tempFitTime_)<<endl;
 
     return;
 }
@@ -687,10 +689,15 @@ double WFClass::TemplateChi2(const double* par)
 
     // for (int i=0; i<10; i++) 
     //     cout<<"x="<<i*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(i*tUnit_-tempFitTime_)<<endl;
+    // for (int i=145; i<165; i++) 
+        // cout<<"i="<<i<<", tUnit_="<<tUnit_<<", x="<<i*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(i*tUnit_-tempFitTime_)<<endl;
 
     // cout<<"fWinMin_="<<fWinMin_<<", fWinMax_="<<fWinMax_<<", xMin="<<fWinMin_*tUnit_<<", xMax="<<fWinMax_*tUnit_<<endl;
     for(int iSample=fWinMin_; iSample<=fWinMax_; ++iSample)
+    // for(int iSample=maxSample_-1; iSample<maxSample_; ++iSample)
+    // for(int iSample=maxSample_; iSample<maxSample_+1; ++iSample)
     {
+        // cout<<"iSample "<<iSample<<" "<<", tUnit_="<<tUnit_<<", x="<<iSample*tUnit_<<", valSample="<<samples_[iSample]<<endl;
         if(iSample < 0 || iSample >= int(samples_.size()))
         {
             //cout << ">>>WARNING: template fit out of samples rage (chi2 set to -1)" << endl;
@@ -703,10 +710,12 @@ double WFClass::TemplateChi2(const double* par)
             if(par) {
                 // cout<<"par0="<<par[0]<<", par1="<<par[1]<<", x="<<iSample*tUnit_-par[1]<<", val="<<interpolator_->Eval(iSample*tUnit_-par[1])<<endl;
                 delta = (samples_[iSample] - par[0]*interpolator_->Eval(iSample*tUnit_-par[1]))/bRMS_;
+                // delta = (samples_[iSample] - par[0]*interpolator_->Eval((iSample-1)*tUnit_-par[1]))/bRMS_;
             }
             else{
                 // cout<<"eval interpolator: "<<"x="<<iSample*tUnit_-tempFitTime_<<", val="<<interpolator_->Eval(iSample*tUnit_-tempFitTime_)<<endl;
                 delta = (samples_[iSample] - tempFitAmp_*interpolator_->Eval(iSample*tUnit_-tempFitTime_))/bRMS_;
+                // delta = (samples_[iSample] - tempFitAmp_*interpolator_->Eval((iSample-1)*tUnit_-tempFitTime_))/bRMS_;
             }
             chi2 += delta*delta;
             // cout<<"delta="<<delta<<", chi2="<<chi2<<endl;            
